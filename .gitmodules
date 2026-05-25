@@ -1,0 +1,6 @@
+[submodule "dependencies/boltz-regtest"]
+	path = dependencies/boltz-regtest
+	url = git@github.com:BoltzExchange/regtest.git
+[submodule "dependencies/marketplace-evm-contracts"]
+	path = dependencies/marketplace-evm-contracts
+	url = git@github.com:sudonym-btc/marketplace-evm-contracts.git

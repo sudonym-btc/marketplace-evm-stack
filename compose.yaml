@@ -1,0 +1,364 @@
+include:
+  - path: ./dependencies/boltz-regtest/docker-compose.yml
+    env_file:
+      - ./dependencies/boltz-regtest/.env
+
+x-boltz-lnd-command: &boltz-lnd-command
+  - --listen=0.0.0.0:9735
+  - --rpclisten=0.0.0.0:10009
+  - --restlisten=0.0.0.0:8081
+  - --bitcoin.timelockdelta=18
+  - --bitcoin.active
+  - --bitcoin.regtest
+  - --bitcoin.node=bitcoind
+  - --bitcoind.rpchost=bitcoind
+  - --bitcoind.zmqpubrawtx=bitcoind:29000
+  - --bitcoind.zmqpubrawblock=bitcoind:29001
+  - --bitcoind.rpccookie=/app/bitcoin/regtest/.cookie
+  - --noseedbackup
+  - --protocol.wumbo-channels
+  - --lnddir=/app/lnd
+  - --maxpendingchannels=10
+
+x-boltz-bitcoind-command: &boltz-bitcoind-command
+  - -regtest
+  - -datadir=/app/bitcoin
+  - -fallbackfee=0.00000253
+  - -mintxfee=0.000001
+  - -zmqpubrawtx=tcp://0.0.0.0:29000
+  - -zmqpubrawblock=tcp://0.0.0.0:29001
+  - -txindex
+  - -rpcallowip=0.0.0.0/0
+  - -rpcbind=0.0.0.0
+  - -deprecatedrpc=warnings
+
+services:
+  bitcoind:
+    container_name: !reset null
+    command: *boltz-bitcoind-command
+    ports: !override
+      - "${MARKETPLACE_EVM_BITCOIN_RPC_PORT:-19443}:18443"
+      - "${MARKETPLACE_EVM_BITCOIN_P2P_PORT:-19444}:18444"
+      - "${MARKETPLACE_EVM_BITCOIN_ZMQ_TX_PORT:-30000}:29000"
+      - "${MARKETPLACE_EVM_BITCOIN_ZMQ_BLOCK_PORT:-30001}:29001"
+
+  bitcoind-init:
+    container_name: !reset null
+
+  elementsd:
+    container_name: !reset null
+    volumes: !override
+      - elements-data:/root/.elements
+      - ./dependencies/boltz-regtest/data/elements/elements.conf:/root/.elements/elements.conf:ro
+      - ./dependencies/boltz-regtest/data/elements/elements.cookie:/root/.elements/elements.cookie:ro
+    ports: !override
+      - "${MARKETPLACE_EVM_ELEMENTS_P2P_PORT:-32000}:31000"
+      - "${MARKETPLACE_EVM_ELEMENTS_ZMQ_TX_PORT:-32001}:31001"
+      - "${MARKETPLACE_EVM_ELEMENTS_ZMQ_BLOCK_PORT:-32002}:31002"
+      - "${MARKETPLACE_EVM_ELEMENTS_RPC_PORT:-19884}:18884"
+    healthcheck:
+      start_period: 10s
+
+  scripts:
+    container_name: !reset null
+    profiles: !override ["never"]
+    volumes:
+      - ./dependencies/boltz-regtest/data/elements/elements.conf:/root/.elements/elements.conf:ro
+      - ./dependencies/boltz-regtest/data/elements/elements.cookie:/root/.elements/elements.cookie:ro
+      - ./config/boltz.conf:/root/.boltz-backend/boltz.conf:ro
+      - ./dependencies/boltz-regtest/data/backend/seed.dat:/root/.boltz-backend/seed.dat:ro
+      - ./dependencies/boltz-regtest/data/boltz-client/boltz.toml:/root/.boltz-client/boltz.toml:ro
+    depends_on:
+      elementsd:
+        condition: service_healthy
+
+  anvil:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_ROOTSTOCK_RPC_PORT:-18545}:8545"
+    healthcheck:
+      retries: 30
+
+  anvil-arbitrum:
+    hostname: anvil-arbitrum
+    image: ${FOUNDRY_IMAGE:-boltz/foundry:latest}
+    entrypoint: "anvil --host 0.0.0.0 --chain-id 412346"
+    volumes:
+      - ./scripts/arbitrum-contract-healthcheck.sh:/scripts/arbitrum-contract-healthcheck.sh:ro
+    ports: !override
+      - "${MARKETPLACE_EVM_ARBITRUM_RPC_PORT:-18546}:8545"
+    healthcheck:
+      test: ["CMD", "sh", "/scripts/arbitrum-contract-healthcheck.sh"]
+      timeout: 10s
+      retries: 60
+      interval: 5s
+      start_period: 180s
+
+  arbitrum-init:
+    image: ${FOUNDRY_IMAGE:-boltz/foundry:latest}
+    restart: "no"
+    depends_on:
+      anvil-arbitrum:
+        condition: service_started
+    volumes:
+      - ./scripts/arbitrum-init.sh:/scripts/arbitrum-init.sh:ro
+      - ./scripts/arbitrum-contract-healthcheck.sh:/scripts/arbitrum-contract-healthcheck.sh:ro
+      - ./scripts/deploy-uniswap-v3.sh:/scripts/deploy-uniswap-v3.sh:ro
+      - ./bytecodes/local-chain:/scripts/local-chain-bytecodes:ro
+      - ./bytecodes/uniswap-v3:/scripts/uniswap-v3-bytecodes:ro
+      - ./dependencies/boltz-regtest/images/scripts/utils.sh:/scripts/boltz-utils.sh:ro
+      - ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/arbitrum:/data
+    entrypoint: ["sh", "/scripts/arbitrum-init.sh"]
+
+  multi-escrow-deploy:
+    image: ${FOUNDRY_IMAGE:-boltz/foundry:latest}
+    restart: "no"
+    depends_on:
+      arbitrum-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts/deploy-multi-escrow.sh:/scripts/deploy-multi-escrow.sh:ro
+      - ./dependencies/marketplace-evm-contracts:/contracts:ro
+      - ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/arbitrum:/data/arbitrum:ro
+      - ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/config:/data/config
+    environment:
+      - ARBITRUM_RPC=http://anvil-arbitrum:8545
+      - HOST_ARBITRUM_RPC=http://127.0.0.1:${MARKETPLACE_EVM_ARBITRUM_RPC_PORT:-18546}
+      - ROOTSTOCK_RPC=http://anvil:8545
+      - HOST_ROOTSTOCK_RPC=http://127.0.0.1:${MARKETPLACE_EVM_ROOTSTOCK_RPC_PORT:-18545}
+      - BOLTZ_API_URL=http://127.0.0.1:${MARKETPLACE_EVM_BOLTZ_API_PORT:-19001}/v2
+      - BOLTZ_CONTAINER_API_URL=http://boltz-backend-nginx:9001/v2
+      - MULTI_ESCROW_DEPLOYER_PRIVATE_KEY=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+    entrypoint: ["sh", "/scripts/deploy-multi-escrow.sh"]
+
+  boltz-backend:
+    container_name: !reset null
+    depends_on:
+      multi-escrow-deploy:
+        condition: service_completed_successfully
+    ports: !override
+      - "${MARKETPLACE_EVM_BOLTZ_BACKEND_PORT:-19000}:9000"
+    volumes: !override
+      - boltz-data:/boltz-data
+      - lnd2-data:/data/lnd-2
+      - lnd3-data:/data/lnd-3
+      - cln2-data:/data/lightning
+      - elements-data:/data/elements
+      - bitcoin-data:/data/bitcoin
+      - ./config/boltz.conf:/boltz-data/boltz.conf:ro
+      - ./dependencies/boltz-regtest/data/backend/seed.dat:/boltz-data/seed.dat:ro
+      - ./patches/DataAggregator.js:/boltz-backend/dist/lib/rates/data/DataAggregator.js:ro
+    healthcheck:
+      start_period: 120s
+
+  boltz-backend-nginx:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_BOLTZ_API_PORT:-19001}:9001"
+    volumes: !override
+      - ./config/boltz-nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  cleanup:
+    container_name: !reset null
+    entrypoint: ["sh", "-c", "echo marketplace-evm-stack cleanup handled by scripts/reset.sh"]
+
+  postgres:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_POSTGRES_PORT:-15432}:5432"
+    networks:
+      default:
+        aliases:
+          - boltz-postgres
+
+  regtest-start:
+    container_name: !reset null
+    volumes:
+      - ./dependencies/boltz-regtest/data/elements/elements.conf:/root/.elements/elements.conf:ro
+      - ./dependencies/boltz-regtest/data/elements/elements.cookie:/root/.elements/elements.cookie:ro
+      - ./config/boltz.conf:/root/.boltz-backend/boltz.conf:ro
+      - ./dependencies/boltz-regtest/data/backend/seed.dat:/root/.boltz-backend/seed.dat:ro
+      - ./dependencies/boltz-regtest/data/boltz-client/boltz.toml:/root/.boltz-client/boltz.toml:ro
+
+  boltz-client:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  boltz-web-app:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  esplora:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  electrs:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  electrs-liquid:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  cln-1:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_CLN1_GRPC_PORT:-19736}:9736"
+      - "${MARKETPLACE_EVM_CLN1_RPC_PORT:-19292}:9292"
+      - "${MARKETPLACE_EVM_CLN1_LNURL_PORT:-13000}:3000"
+
+  cln-2:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_CLN2_GRPC_PORT:-19737}:9736"
+      - "${MARKETPLACE_EVM_CLN2_RPC_PORT:-19738}:9292"
+      - "${MARKETPLACE_EVM_CLN2_HOLD_RPC_PORT:-19739}:9293"
+
+  lnd-1:
+    container_name: !reset null
+    command: *boltz-lnd-command
+    ports: !override
+      - "${MARKETPLACE_EVM_LND1_REST_PORT:-18081}:8081"
+      - "${MARKETPLACE_EVM_LND1_RPC_PORT:-20009}:10009"
+      - "${MARKETPLACE_EVM_LND1_P2P_PORT:-39735}:9735"
+
+  lnd-2:
+    container_name: !reset null
+    command: *boltz-lnd-command
+    ports: !override
+      - "${MARKETPLACE_EVM_LND2_RPC_PORT:-21009}:10009"
+
+  lnd-3:
+    container_name: !reset null
+    ports: !override
+      - "${MARKETPLACE_EVM_LND3_RPC_PORT:-22009}:10009"
+
+  otterscan:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  redis:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  nbxplorer:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  arkd-wallet:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  arkd:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  fulmine:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  backend-dev-ready:
+    container_name: !reset null
+    profiles: !override ["never"]
+
+  stack-ready:
+    image: ${FOUNDRY_IMAGE:-boltz/foundry:latest}
+    profiles: ["tools"]
+    depends_on:
+      boltz-backend-nginx:
+        condition: service_healthy
+      multi-escrow-deploy:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts/stack-smoke.sh:/scripts/stack-smoke.sh:ro
+      - ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/config:/data/config:ro
+    environment:
+      - ARBITRUM_RPC=http://anvil-arbitrum:8545
+      - ROOTSTOCK_RPC=http://anvil:8545
+    entrypoint: ["sh", "/scripts/stack-smoke.sh"]
+
+volumes:
+  boltz-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/backend
+  boltz-client-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/boltz-client
+  bitcoin-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/bitcoind
+  elements-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/elements
+  cln1-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/cln1
+  cln2-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/cln2
+  lnd1-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/lnd1
+  lnd2-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/lnd2
+  lnd3-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/lnd3
+  nginx-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/backend-nginx
+  arkd-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/arkd
+  fulmine-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/fulmine
