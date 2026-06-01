@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # arbitrum-init.sh
 #
-# Deploys EtherSwap, ERC20Swap, and a mock tBTC ERC20 token to the
+# Deploys EtherSwap, ERC20Swap, and mock tBTC/USDT ERC20 assets to the
 # anvil-arbitrum chain (chain-id 412346).  Uses bytecodes extracted
 # from the boltz-regtest utils.sh (mounted read-only).
 #
@@ -61,9 +61,9 @@ has_code() {
   [ -n "$code" ] && [ "$code" != "0x" ]
 }
 
-write_token_manifest() {
-  TOKEN_MANIFEST="/data/token-addresses.json"
-  cat > "$TOKEN_MANIFEST" << JSONEOF
+write_asset_manifest() {
+  ASSET_MANIFEST="/data/asset-addresses.json"
+  cat > "$ASSET_MANIFEST" << JSONEOF
 {
   "regtest.412346": {
     "tBTC": { "address": "$1", "decimals": 18 },
@@ -71,7 +71,7 @@ write_token_manifest() {
   }
 }
 JSONEOF
-  echo "Token manifest written to $TOKEN_MANIFEST"
+  echo "Asset manifest written to $ASSET_MANIFEST"
 }
 
 if has_code "$ETHERSWAP_ADDRESS" &&
@@ -79,7 +79,7 @@ if has_code "$ETHERSWAP_ADDRESS" &&
    has_code "$EXPECTED_TBTC_ADDRESS" &&
    has_code "$EXPECTED_USDT_ADDRESS"; then
   echo "Arbitrum contracts already deployed; refreshing manifest and exiting."
-  write_token_manifest "$EXPECTED_TBTC_ADDRESS" "$EXPECTED_USDT_ADDRESS"
+  write_asset_manifest "$EXPECTED_TBTC_ADDRESS" "$EXPECTED_USDT_ADDRESS"
   if [ -f /scripts/arbitrum-contract-healthcheck.sh ]; then
     ARBITRUM_HEALTHCHECK_RPC_URL="$ARBITRUM_RPC" sh /scripts/arbitrum-contract-healthcheck.sh
   fi
@@ -132,9 +132,9 @@ echo " MockTBTC:   $TBTC_ADDRESS"
 echo " MockUSDT:   $USDT_ADDRESS"
 echo "═══════════════════════════════════════════════"
 
-# ── 4. Write token address manifest ──────────────────────────────────────
+# ── 4. Write asset address manifest ──────────────────────────────────────
 # Written to a mounted volume so sync-contract-env.sh can read it.
-write_token_manifest "$TBTC_ADDRESS" "$USDT_ADDRESS"
+write_asset_manifest "$TBTC_ADDRESS" "$USDT_ADDRESS"
 
 # ── 5. Fund default Anvil accounts with tBTC and USDT ───────────────────
 echo ""

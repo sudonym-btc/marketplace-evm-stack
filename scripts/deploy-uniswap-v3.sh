@@ -31,7 +31,7 @@
 #   ARBITRUM_RPC     – RPC endpoint (e.g. http://anvil-arbitrum:8545)
 #   TBTC_ADDRESS     – deployed MockTBTC address
 #   USDT_ADDRESS     – deployed MockUSDT address
-#   DEPLOYER_PK      – private key of Account #1 (token holder)
+#   DEPLOYER_PK      – private key of Account #1 (asset holder)
 # ─────────────────────────────────────────────────────────────────────────────
 set -eu
 export FOUNDRY_DISABLE_NIGHTLY_WARNING="${FOUNDRY_DISABLE_NIGHTLY_WARNING:-true}"
@@ -253,7 +253,7 @@ echo "  ✓ tBTC/USDT pool initialised"
 # ══════════════════════════════════════════════════════════════════════════
 
 echo ""
-echo "▶ Funding Uniswap deployer with tokens for liquidity..."
+echo "▶ Funding Uniswap deployer with assets for liquidity..."
 
 # Transfer MockUSDT and MockTBTC from main deployer (Account #1) to UNI deployer
 USDT_LIQ="500000000000"              # 500k USDT (6 decimals)
@@ -267,15 +267,15 @@ cast send --rpc-url "$RPC" --private-key "$DEPLOYER_PK" \
   "$TBTC_ADDRESS" "transfer(address,uint256)" "$UNI_DEPLOYER" "$TBTC_LIQ" >/dev/null
 echo "  ✓ 10 tBTC → $UNI_DEPLOYER"
 
-# ── Approve tokens for NonfungiblePositionManager ─────────────────────────
+# ── Approve assets for NonfungiblePositionManager ─────────────────────────
 MAX_UINT="115792089237316195423570985008687907853269984665640564039457584007913129639935"
 
-echo "  Approving tokens for NonfungiblePositionManager..."
+echo "  Approving assets for NonfungiblePositionManager..."
 cast send --rpc-url "$RPC" --private-key "$UNI_PK" \
   "$USDT_ADDRESS" "approve(address,uint256)" "$NFT_POS_MGR" "$MAX_UINT" >/dev/null
 cast send --rpc-url "$RPC" --private-key "$UNI_PK" \
   "$TBTC_ADDRESS" "approve(address,uint256)" "$NFT_POS_MGR" "$MAX_UINT" >/dev/null
-echo "  ✓ Tokens approved"
+echo "  ✓ Assets approved"
 
 # ── Add full-range liquidity ──────────────────────────────────────────────
 # fee=3000 → tickSpacing=60 → min/max ticks rounded to spacing:

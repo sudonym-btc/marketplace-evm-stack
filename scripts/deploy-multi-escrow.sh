@@ -10,7 +10,7 @@ BOLTZ_CONTAINER_API_URL="${BOLTZ_CONTAINER_API_URL:-http://boltz-backend-nginx:9
 CONTRACTS_DIR="${CONTRACTS_DIR:-/contracts}"
 ARTIFACT="$CONTRACTS_DIR/artifacts/MultiEscrow.json"
 CONFIG_DIR="${CONFIG_DIR:-/data/config}"
-TOKEN_MANIFEST="${TOKEN_MANIFEST:-/data/arbitrum/token-addresses.json}"
+ASSET_MANIFEST="${ASSET_MANIFEST:-/data/arbitrum/asset-addresses.json}"
 DEPLOYER_PRIVATE_KEY="${MULTI_ESCROW_DEPLOYER_PRIVATE_KEY:-0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a}"
 EXPECTED_MULTI_ESCROW_ADDRESS="${EXPECTED_MULTI_ESCROW_ADDRESS:-0x663f3ad617193148711d28f5334ee4ed07016602}"
 
@@ -54,9 +54,9 @@ RUNTIME_HASH="0x$(printf '%s' "${CODE#0x}" | perl -ne 'print pack("H*", $_)' | s
 TBTC_ADDRESS="0x948B3c65b89DF0B4894ABE91E6D02FE579834F8F"
 USDT_ADDRESS="0x712516e61C8B383dF4A63CFe83d7701Bce54B03e"
 
-if [ -f "$TOKEN_MANIFEST" ]; then
-  TBTC_ADDRESS="$(sed -n '/"tBTC"/,/}/s/.*"address": "\([^"]*\)".*/\1/p' "$TOKEN_MANIFEST" | head -1)"
-  USDT_ADDRESS="$(sed -n '/"USDT"/,/}/s/.*"address": "\([^"]*\)".*/\1/p' "$TOKEN_MANIFEST" | head -1)"
+if [ -f "$ASSET_MANIFEST" ]; then
+  TBTC_ADDRESS="$(sed -n '/"tBTC"/,/}/s/.*"address": "\([^"]*\)".*/\1/p' "$ASSET_MANIFEST" | head -1)"
+  USDT_ADDRESS="$(sed -n '/"USDT"/,/}/s/.*"address": "\([^"]*\)".*/\1/p' "$ASSET_MANIFEST" | head -1)"
 fi
 
 cat > "$CONFIG_DIR/contract-addresses.json" << JSON
@@ -76,7 +76,7 @@ cat > "$CONFIG_DIR/marketplace-evm-stack.json" << JSON
       "chainId": 412346,
       "rpcUrl": "$HOST_ARBITRUM_RPC",
       "containerRpcUrl": "$ARBITRUM_RPC",
-      "nativeToken": {
+      "nativeAsset": {
         "denomination": "ETH",
         "decimals": 18
       },
@@ -85,16 +85,16 @@ cat > "$CONFIG_DIR/marketplace-evm-stack.json" << JSON
         "address": "$MULTI_ESCROW_ADDRESS",
         "runtimeBytecodeHash": "$RUNTIME_HASH"
       },
-      "tokens": {
+      "assets": {
         "TBTC": {
           "address": "$TBTC_ADDRESS",
-          "denomination": "tBTC",
+          "denomination": "BTC",
           "decimals": 18,
           "boltzCurrency": "tBTC"
         },
         "USDT": {
           "address": "$USDT_ADDRESS",
-          "denomination": "USDT",
+          "denomination": "USD",
           "decimals": 6,
           "boltzCurrency": "USDT"
         }
@@ -105,7 +105,7 @@ cat > "$CONFIG_DIR/marketplace-evm-stack.json" << JSON
       "chainId": 33,
       "rpcUrl": "$HOST_ROOTSTOCK_RPC",
       "containerRpcUrl": "$ROOTSTOCK_RPC",
-      "nativeToken": {
+      "nativeAsset": {
         "denomination": "RBTC",
         "decimals": 18
       },
