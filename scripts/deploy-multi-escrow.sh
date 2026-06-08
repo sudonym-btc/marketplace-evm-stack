@@ -7,6 +7,11 @@ ROOTSTOCK_RPC="${ROOTSTOCK_RPC:-http://anvil:8545}"
 HOST_ROOTSTOCK_RPC="${HOST_ROOTSTOCK_RPC:-http://127.0.0.1:8545}"
 BOLTZ_API_URL="${BOLTZ_API_URL:-http://127.0.0.1:9001/v2}"
 BOLTZ_CONTAINER_API_URL="${BOLTZ_CONTAINER_API_URL:-http://boltz-backend-nginx:9001/v2}"
+AA_BUNDLER_URL="${AA_BUNDLER_URL:-http://127.0.0.1:4337}"
+AA_PAYMASTER_URL="${AA_PAYMASTER_URL:-http://127.0.0.1:3010}"
+AA_ENTRY_POINT_ADDRESS="${AA_ENTRY_POINT_ADDRESS:-0x0000000071727De22E5E9d8BAf0edAc6f37da032}"
+AA_ACCOUNT_FACTORY_ADDRESS="${AA_ACCOUNT_FACTORY_ADDRESS:-0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985}"
+AA_PAYMASTER_ADDRESS="${AA_PAYMASTER_ADDRESS:-0x38aef040CEB057B62E1598F5C265946A4E4BaB4C}"
 CONTRACTS_DIR="${CONTRACTS_DIR:-/contracts}"
 ARTIFACT="$CONTRACTS_DIR/artifacts/MultiEscrow.json"
 CONFIG_DIR="${CONFIG_DIR:-/data/config}"
@@ -81,6 +86,15 @@ cat > "$CONFIG_DIR/marketplace-evm-stack.json" << JSON
         "decimals": 18
       },
       "boltzCurrency": "ARB",
+      "accountAbstraction": {
+        "entryPointAddress": "$AA_ENTRY_POINT_ADDRESS",
+        "entryPointVersion": "0.7",
+        "factoryAddress": "$AA_ACCOUNT_FACTORY_ADDRESS",
+        "bundlerUrl": "$AA_BUNDLER_URL",
+        "paymasterUrl": "$AA_PAYMASTER_URL",
+        "paymasterAddress": "$AA_PAYMASTER_ADDRESS",
+        "userOperationReceiptTimeoutMs": 120000
+      },
       "multiEscrow": {
         "address": "$MULTI_ESCROW_ADDRESS",
         "runtimeBytecodeHash": "$RUNTIME_HASH"

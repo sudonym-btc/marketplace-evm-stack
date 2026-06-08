@@ -128,8 +128,64 @@ services:
       - HOST_ROOTSTOCK_RPC=http://127.0.0.1:${MARKETPLACE_EVM_ROOTSTOCK_RPC_PORT:-18545}
       - BOLTZ_API_URL=http://127.0.0.1:${MARKETPLACE_EVM_BOLTZ_API_PORT:-19001}/v2
       - BOLTZ_CONTAINER_API_URL=http://boltz-backend-nginx:9001/v2
+      - AA_BUNDLER_URL=http://127.0.0.1:${MARKETPLACE_EVM_AA_BUNDLER_PORT:-4337}
+      - AA_PAYMASTER_URL=http://127.0.0.1:${MARKETPLACE_EVM_AA_PAYMASTER_PORT:-3010}
       - MULTI_ESCROW_DEPLOYER_PRIVATE_KEY=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
     entrypoint: ["sh", "/scripts/deploy-multi-escrow.sh"]
+
+  contract-deployer:
+    image: ghcr.io/pimlicolabs/mock-contract-deployer:main
+    restart: "no"
+    depends_on:
+      anvil-arbitrum:
+        condition: service_healthy
+    volumes:
+      - ./scripts/write-aa-addresses.sh:/write-aa-addresses.sh:ro
+      - ${MARKETPLACE_EVM_STACK_DATA_DIR:-./data}/config:/output
+    environment:
+      ANVIL_RPC: http://anvil-arbitrum:8545
+    command: ["sh", "/write-aa-addresses.sh"]
+
+  alto:
+    image: ghcr.io/pimlicolabs/alto:latest
+    entrypoint:
+      - node
+      - src/lib/cli/alto.js
+      - run
+      - --config
+      - /app/alto-config.json
+    depends_on:
+      contract-deployer:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --post-data='{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' --header='Content-Type: application/json' http://127.0.0.1:4337 >/dev/null"]
+      timeout: 3s
+      retries: 30
+      interval: 5s
+      start_period: 10s
+    ports:
+      - "${MARKETPLACE_EVM_AA_BUNDLER_PORT:-4337}:4337"
+    volumes:
+      - ./config/alto-config.json:/app/alto-config.json:ro
+
+  paymaster:
+    image: ghcr.io/pimlicolabs/mock-verifying-paymaster:main
+    depends_on:
+      contract-deployer:
+        condition: service_completed_successfully
+      alto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ping | grep -q 'pong'"]
+      timeout: 3s
+      retries: 30
+      interval: 5s
+      start_period: 10s
+    environment:
+      ALTO_RPC: http://alto:4337
+      ANVIL_RPC: http://anvil-arbitrum:8545
+    ports:
+      - "${MARKETPLACE_EVM_AA_PAYMASTER_PORT:-3010}:3000"
 
   boltz-backend:
     container_name: !reset null
