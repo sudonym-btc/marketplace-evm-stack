@@ -14,7 +14,6 @@ for dir in \
   "$DATA_DIR/arbitrum" \
   "$DATA_DIR/config" \
   "$DATA_DIR/arkd" \
-  "$DATA_DIR/bitcoind" \
   "$DATA_DIR/boltz-client" \
   "$DATA_DIR/backend" \
   "$DATA_DIR/backend-nginx" \
@@ -29,6 +28,11 @@ do
   mkdir -p "$dir"
   touch "$dir/.gitkeep"
 done
+
+if [ "${MARKETPLACE_EVM_USE_SHARED_BITCOIN:-0}" != "1" ]; then
+  mkdir -p "$DATA_DIR/bitcoind"
+  touch "$DATA_DIR/bitcoind/.gitkeep"
+fi
 
 touch "$DATA_DIR/.gitkeep"
 

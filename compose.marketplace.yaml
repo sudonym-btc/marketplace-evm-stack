@@ -1,0 +1,71 @@
+services:
+  arbitrum-explorer:
+    environment:
+      - 'OTTERSCAN_CONFIG={"erigonURL":"https://arbitrum.evm.marketplace.test","chainInfo":{"name":"Arbitrum Regtest","faucets":[],"nativeCurrency":{"name":"Arbitrum","symbol":"ARB","decimals":18}}}'
+
+  multi-escrow-deploy:
+    environment:
+      - HOST_ARBITRUM_EXPLORER_URL=https://explorer.arbitrum.evm.marketplace.test
+
+  bitcoind:
+    profiles: !override ["standalone"]
+
+  bitcoind-init:
+    container_name: !reset null
+    depends_on: !override []
+    volumes: !override
+      - bitcoin-data:/root/.bitcoin:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        until bitcoin-cli -rpcconnect=bitcoind -regtest -rpccookiefile=/root/.bitcoin/regtest/.cookie getblockchaininfo >/dev/null 2>&1; do
+          echo "waiting for shared marketplace bitcoind..."
+          sleep 1
+        done
+        echo "shared marketplace bitcoind ready for EVM stack"
+
+  lnd-1:
+    volumes_from: !override []
+    volumes: !override
+      - bitcoin-data:/app/bitcoin:ro
+      - lnd1-data:/app/lnd/
+
+  lnd-2:
+    volumes_from: !override []
+    volumes: !override
+      - bitcoin-data:/app/bitcoin:ro
+      - lnd2-data:/app/lnd/
+
+  lnd-3:
+    volumes_from: !override []
+    volumes: !override
+      - bitcoin-data:/app/bitcoin:ro
+      - lnd3-data:/app/lnd/
+
+  cln-1:
+    volumes_from: !override []
+    volumes: !override
+      - bitcoin-data:/app/bitcoin:ro
+      - cln1-data:/app/lightning
+
+  cln-2:
+    volumes_from: !override []
+    volumes: !override
+      - bitcoin-data:/app/bitcoin:ro
+      - cln2-data:/app/lightning
+
+networks:
+  default:
+    external: true
+    name: ${MARKETPLACE_SHARED_BITCOIN_NETWORK:-nmdk-marketplace_default}
+
+volumes:
+  bitcoin-data:
+    name: !reset null
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MARKETPLACE_SHARED_BITCOIN_DATA_DIR:-../../data/marketplace/bitcoind}

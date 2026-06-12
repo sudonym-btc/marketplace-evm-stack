@@ -13,6 +13,7 @@ The stack is intentionally Nostr-agnostic and app-agnostic. It provides:
 - Uniswap V3 routing contracts for Boltz rates
 - `MultiEscrow` deployed from `@sudonym-btc/marketplace-evm-contracts` for escrow and auction bid locks
 - local ERC-4337 account-abstraction services: Alto bundler and mock paymaster
+- a standalone Boltz regtest Bitcoin node when run directly
 - a generated JSON config consumed by TypeScript and Dart tests
 
 ## Usage
@@ -37,6 +38,7 @@ data/config/marketplace-evm-stack.json
 The standalone stack uses fixed localhost ports by default:
 
 - Arbitrum RPC: `http://127.0.0.1:18546`
+- Arbitrum explorer: `http://127.0.0.1:15100`
 - Rootstock RPC: `http://127.0.0.1:18545`
 - Boltz API: `http://127.0.0.1:19001/v2`
 - Bundler: `http://127.0.0.1:4337`

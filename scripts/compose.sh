@@ -18,4 +18,8 @@ export COMPOSE_PROJECT_NAME
 export MARKETPLACE_EVM_STACK_DATA_DIR="$DATA_DIR"
 
 cd "$REPO_ROOT"
+if [ "${MARKETPLACE_EVM_USE_SHARED_BITCOIN:-0}" = "1" ]; then
+  exec docker compose --env-file ./.env -f compose.yaml -f compose.marketplace.yaml "$@"
+fi
+
 exec docker compose --env-file ./.env -f compose.yaml "$@"
