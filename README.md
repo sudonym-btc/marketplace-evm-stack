@@ -37,6 +37,7 @@ data/config/marketplace-evm-stack.json
 The standalone stack uses fixed localhost ports by default:
 
 - Arbitrum RPC: `http://127.0.0.1:18546`
+- Arbitrum explorer: `http://127.0.0.1:15100`
 - Rootstock RPC: `http://127.0.0.1:18545`
 - Boltz API: `http://127.0.0.1:19001/v2`
 - Bundler: `http://127.0.0.1:4337`

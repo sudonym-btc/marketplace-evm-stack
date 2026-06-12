@@ -3,6 +3,7 @@ set -eu
 
 ARBITRUM_RPC="${ARBITRUM_RPC:-http://anvil-arbitrum:8545}"
 HOST_ARBITRUM_RPC="${HOST_ARBITRUM_RPC:-http://127.0.0.1:8546}"
+HOST_ARBITRUM_EXPLORER_URL="${HOST_ARBITRUM_EXPLORER_URL:-http://127.0.0.1:15100}"
 ROOTSTOCK_RPC="${ROOTSTOCK_RPC:-http://anvil:8545}"
 HOST_ROOTSTOCK_RPC="${HOST_ROOTSTOCK_RPC:-http://127.0.0.1:8545}"
 BOLTZ_API_URL="${BOLTZ_API_URL:-http://127.0.0.1:9001/v2}"
@@ -80,6 +81,7 @@ cat > "$CONFIG_DIR/marketplace-evm-stack.json" << JSON
       "name": "Arbitrum Regtest",
       "chainId": 412346,
       "rpcUrl": "$HOST_ARBITRUM_RPC",
+      "blockExplorerUrl": "$HOST_ARBITRUM_EXPLORER_URL",
       "containerRpcUrl": "$ARBITRUM_RPC",
       "nativeAsset": {
         "denomination": "ETH",

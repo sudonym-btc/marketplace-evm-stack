@@ -94,6 +94,20 @@ services:
       interval: 5s
       start_period: 180s
 
+  arbitrum-explorer:
+    hostname: arbitrum-explorer
+    image: ${OTTERSCAN_IMAGE:-otterscan/otterscan:latest}
+    restart: unless-stopped
+    depends_on:
+      anvil-arbitrum:
+        condition: service_healthy
+    environment:
+      - 'OTTERSCAN_CONFIG={"erigonURL":"http://127.0.0.1:18546","chainInfo":{"name":"Arbitrum Regtest","faucets":[],"nativeCurrency":{"name":"Arbitrum","symbol":"ARB","decimals":18}}}'
+    expose:
+      - 80
+    ports:
+      - "${MARKETPLACE_EVM_ARBITRUM_EXPLORER_PORT:-15100}:80"
+
   arbitrum-init:
     image: ${FOUNDRY_IMAGE:-boltz/foundry:latest}
     restart: "no"
@@ -124,6 +138,7 @@ services:
     environment:
       - ARBITRUM_RPC=http://anvil-arbitrum:8545
       - HOST_ARBITRUM_RPC=http://127.0.0.1:${MARKETPLACE_EVM_ARBITRUM_RPC_PORT:-18546}
+      - HOST_ARBITRUM_EXPLORER_URL=http://127.0.0.1:${MARKETPLACE_EVM_ARBITRUM_EXPLORER_PORT:-15100}
       - ROOTSTOCK_RPC=http://anvil:8545
       - HOST_ROOTSTOCK_RPC=http://127.0.0.1:${MARKETPLACE_EVM_ROOTSTOCK_RPC_PORT:-18545}
       - BOLTZ_API_URL=http://127.0.0.1:${MARKETPLACE_EVM_BOLTZ_API_PORT:-19001}/v2
