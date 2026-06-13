@@ -9,7 +9,7 @@ x-boltz-lnd-command: &boltz-lnd-command
   - --restlisten=0.0.0.0:8081
   - --tlsextradomain=marketplace-lnd
   - --tlsextradomain=marketplace-lnd.evm.marketplace.test
-  - --bitcoin.timelockdelta=18
+  - --bitcoin.timelockdelta=24
   - --bitcoin.active
   - --bitcoin.regtest
   - --bitcoin.node=bitcoind
@@ -34,6 +34,36 @@ x-boltz-bitcoind-command: &boltz-bitcoind-command
   - -rpcallowip=0.0.0.0/0
   - -rpcbind=0.0.0.0
   - -deprecatedrpc=warnings
+
+x-boltz-cln-command: &boltz-cln-command
+  - --lightning-dir=/app/lightning
+  - --large-channels
+  - --network
+  - regtest
+  - --bind-addr=0.0.0.0:9735
+  - --bitcoin-rpcconnect=bitcoind
+  - --bitcoin-rpcport=18443
+  - --grpc-host=0.0.0.0
+  - --grpc-port=9736
+  - --dev-bitcoind-poll=3
+  - --developer
+  - --dev-fast-gossip
+  - --dev-fast-reconnect
+  - --plugin=/usr/local/bin/hold
+  - --plugin=/usr/local/bin/clnurl
+  - --clnurl-host=0.0.0.0
+  - --database-upgrade=true
+  - --ignore-fee-limits=false
+  - --min-emergency-msat=1000000
+  - --bitcoin-datadir=/app/bitcoin
+  - --cltv-delta=18
+  - --cltv-final=18
+
+x-boltz-cln-entrypoint: &boltz-cln-entrypoint
+  - sh
+  - -c
+  - rm -f /app/lightning/regtest/lightning-rpc /app/lightning/lightningd-regtest.pid && exec lightningd "$$@"
+  - --
 
 services:
   bitcoind:
@@ -60,7 +90,10 @@ services:
       - "${MARKETPLACE_EVM_ELEMENTS_ZMQ_BLOCK_PORT:-32002}:31002"
       - "${MARKETPLACE_EVM_ELEMENTS_RPC_PORT:-19884}:18884"
     healthcheck:
-      start_period: 10s
+      timeout: 3s
+      retries: 60
+      interval: 2s
+      start_period: 30s
 
   scripts:
     container_name: !reset null
@@ -219,6 +252,8 @@ services:
       - cln2-data:/data/lightning
       - elements-data:/data/elements
       - bitcoin-data:/data/bitcoin
+      - ./dependencies/boltz-regtest/images/boltz-backend/entrypoint.sh:/boltz-entrypoint.sh:ro
+      - ./dependencies/boltz-regtest/images/boltz-backend/arbitrum.conf:/arbitrum.conf:ro
       - ./config/boltz.conf:/boltz-data/boltz.conf:ro
       - ./dependencies/boltz-regtest/data/backend/seed.dat:/boltz-data/seed.dat:ro
       - ./patches/DataAggregator.js:/boltz-backend/dist/lib/rates/data/DataAggregator.js:ro
@@ -276,6 +311,8 @@ services:
 
   cln-1:
     container_name: !reset null
+    entrypoint: *boltz-cln-entrypoint
+    command: *boltz-cln-command
     ports: !override
       - "${MARKETPLACE_EVM_CLN1_GRPC_PORT:-19736}:9736"
       - "${MARKETPLACE_EVM_CLN1_RPC_PORT:-19292}:9292"
@@ -283,6 +320,8 @@ services:
 
   cln-2:
     container_name: !reset null
+    entrypoint: *boltz-cln-entrypoint
+    command: *boltz-cln-command
     ports: !override
       - "${MARKETPLACE_EVM_CLN2_GRPC_PORT:-19737}:9736"
       - "${MARKETPLACE_EVM_CLN2_RPC_PORT:-19738}:9292"
